@@ -175,6 +175,9 @@ func main() {
 	} else if action == "c" { // check off a todo
 		// TODO: implement this
 	}
-	printState(data)
+
+	if action != "h" {
+		printState(data)
+	}
 	data.SaveTo(fullpath)
 }
