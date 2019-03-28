@@ -4,7 +4,8 @@ import (
 	"flag"
     "fmt"
     // "github.com/mattsteencpp/go-daily-tracker/tracker"
-	"gopkg.in/ini.v1"
+	"gopkg.in/yaml.v2"
+	"io/ioutil"
 	"os"
 	"regexp"
 	"strconv"
@@ -12,6 +13,21 @@ import (
 )
 
 const timeFormat = "3:04pm"
+
+type TrackerData struct {
+	Time string `yaml:"time"`
+	Entries []TrackerEntry `yaml:"entries"`
+	Todos []TrackerTodo `yaml:"todos"`
+}
+
+type TrackerEntry struct {
+	Name string `yaml:"name"`
+	Total float64 `yaml:"total"`
+}
+
+type TrackerTodo struct {
+	Content string `yaml:"content"`
+}
 
 func idxToLetter(idx int) string {
 	letter := string(idx + 97)
@@ -23,7 +39,7 @@ func letterToIdx(letter string) int {
 	return idx
 }
 
-func updateValue(data *ini.File, action, input string) {
+func updateValue(data *TrackerData, action, input string) {
 	// action should be a for add or s for subtract
 	// input should be the letter of the entry to update,
 	// optionally preceded by an integer multiplier
@@ -45,93 +61,104 @@ func updateValue(data *ini.File, action, input string) {
 	}
 
 	idx := letterToIdx(letter)
-	keys := data.Section("entries").Keys()
-	key := keys[idx]
-	value, _ := key.Float64()
-	value += delta
-	strValue := fmt.Sprintf("%.2f", value)
-	key.SetValue(strValue)
+	data.Entries[idx].Total += delta
 
 	updateTime(data, delta)
 }
 
-func updateTime(data *ini.File, delta float64) {
-	// update log time
-	timeKey := data.Section("").Key("time")
-	logTime, err := timeKey.TimeFormat(timeFormat)
+func updateTime(data *TrackerData, delta float64) {
+	timeKey := data.Time
+	logTime, err := time.Parse(timeFormat, timeKey)
     if err != nil {
         fmt.Printf("Failed to parse time: %v\n", err)
         os.Exit(1)
     }
 	logTime = logTime.Add(time.Minute * time.Duration(int(60 * delta)))
 	newTime := logTime.Format(timeFormat)
-	timeKey.SetValue(newTime)
+	data.Time = newTime
 }
 
-func setTime(data *ini.File, newTime string) {
-	timeKey := data.Section("").Key("time")
+func setTime(data *TrackerData, newTime string) {
 	_, err := time.Parse(timeFormat, newTime)
     if err != nil {
         fmt.Printf("Failed to parse time: %v\n", err)
         os.Exit(1)
     }
-	timeKey.SetValue(newTime)
+	data.Time = newTime
 }
 
-func resetEntries(data *ini.File) {
-	keys := data.Section("entries").Keys()
+func resetEntries(data *TrackerData) {
 	totalTime := 0.0
-	for i := 0; i < len(keys); i++ {
-		key := keys[i]
-		value, _ := key.Float64()
-		totalTime -= value
-		key.SetValue("0")
+	for i := 0; i < len(data.Entries); i++ {
+		totalTime -= data.Entries[i].Total
+		data.Entries[i].Total = 0
 	}
 	updateTime(data, totalTime)
 }
 
-func printState(data *ini.File) {
-	keys := data.Section("entries").Keys()
-	for i := 0; i < len(keys); i++ {
-		key := keys[i]
-		value, _ := key.Float64()
+func printState(data TrackerData) {
+	entries := data.Entries
+	for i := 0; i < len(entries); i++ {
+		entry := entries[i]
 		letter := idxToLetter(i)
-		fmt.Printf("%s) %s: %vh\n", letter, key.Name(), value)
+		fmt.Printf("%s) %s: %vh\n", letter, entry.Name, entry.Total)
 	}
-	logTime := data.Section("").Key("time").String()
+	logTime := data.Time
 	fmt.Printf(logTime)
 	fmt.Println("\n")
-	// TODO: print daily todos from file
+
+	fmt.Printf("TODO:\n")
+	for idx := 0; idx < len(data.Todos); idx++ {
+		letter := idxToLetter(idx)
+		fmt.Printf("%s) %s\n", letter, data.Todos[idx].Content)
+	}
+	fmt.Println("")
 }
 
-func createEntry(data *ini.File, name string) {
-	data.Section("entries").NewKey(name, "0")
+func createEntry(data *TrackerData, name string) {
+	newEntry := TrackerEntry{Name: name, Total: 0.0}
+	data.Entries = append(data.Entries, newEntry)
 }
 
-func renameEntry(data *ini.File, letter string, newName string) {
+func renameEntry(data *TrackerData, letter string, newName string) {
 	idx := letterToIdx(letter)
-	keys := data.Section("entries").Keys()
-	key := keys[idx]
-	value := key.String()
-	data.Section("entries").DeleteKey(key.Name())
-	data.Section("entries").NewKey(newName, value)
-	// TODO: handle ordering
+	data.Entries[idx].Name = newName
 }
 
-func deleteEntry(data *ini.File, letter string) {
+func deleteEntry(data *TrackerData, letter string) {
 	idx := letterToIdx(letter)
-	keys := data.Section("entries").Keys()
-	key := keys[idx]
-	data.Section("entries").DeleteKey(key.Name())
+	data.Entries = append(data.Entries[:idx], data.Entries[idx + 1:]...)
+}
+
+func createTodo(data *TrackerData, todo string) {
+	newTodo := TrackerTodo{Content: todo}
+	data.Todos = append(data.Todos, newTodo)
+}
+
+func deleteTodo(data *TrackerData, letter string) {
+	idx := letterToIdx(letter)
+	data.Todos = append(data.Todos[:idx], data.Todos[idx + 1:]...)
+}
+
+func swapTodos(data *TrackerData, letterOne string, letterTwo string) {
+	idxOne := letterToIdx(letterOne)
+	idxTwo := letterToIdx(letterTwo)
+	tempContent := data.Todos[idxTwo].Content
+	data.Todos[idxTwo].Content = data.Todos[idxOne].Content
+	data.Todos[idxOne].Content = tempContent
 }
 
 func main() {
-	fullpath := "/home/msteen/.daily-tracker.ini"
-	data, err := ini.Load(fullpath)
-    if err != nil {
-        fmt.Printf("Failed to read file: %v'\n", err)
+	fullpath := "/home/msteen/.daily-tracker.yaml"
+	body, err := ioutil.ReadFile(fullpath)
+	if err != nil {
+		fmt.Printf("There was an error reading the yaml file\n")
         os.Exit(1)
-    }
+	}
+
+	var trackerData TrackerData
+	yaml.Unmarshal(body, &trackerData)
+
 	flag.Parse()
 	action := flag.Arg(0)
 	if action == "h" {
@@ -148,36 +175,44 @@ func main() {
 		fmt.Println("'daily-tracker d e' to delete entry e")
 		fmt.Println("'daily-tracker r' to reset all entries to 0 and the start time to the previous day")
 		fmt.Println("'daily-tracker todo \"review Corey's PR\"' to add a new todo")
-		// fmt.Println("'daily-tracker c 1' to reorder todo 1")
-		fmt.Println("'daily-tracker c 1' to checkoff todo 1")
+		fmt.Println("'daily-tracker tr a b' to swap todos a and b")
+		fmt.Println("'daily-tracker c a' to checkoff todo a")
 	} else if action == "a" || action == "s" { // add or subtract
 		input := flag.Arg(1)
-		updateValue(data, action, input)
+		updateValue(&trackerData, action, input)
 	} else if action == "t" { // set start time for the day
 		newTime := flag.Arg(1)
-		setTime(data, newTime)
+		setTime(&trackerData, newTime)
 	} else if action == "r" { // reset all entries
-		resetEntries(data)
+		resetEntries(&trackerData)
 	} else if action == "n" { // new entry
 		name := flag.Arg(1)
-		createEntry(data, name)
+		createEntry(&trackerData, name)
 	} else if action == "m" { // mv entry
 		letter := flag.Arg(1)
 		newName := flag.Arg(2)
-		renameEntry(data, letter, newName)
+		renameEntry(&trackerData, letter, newName)
 	} else if action == "d" { // delete entry
 		letter := flag.Arg(1)
-		deleteEntry(data, letter)
+		deleteEntry(&trackerData, letter)
 	} else if action == "todo" { // add a todo
-		// TODO: implement this
+		todo := flag.Arg(1)
+		createTodo(&trackerData, todo)
 	} else if action == "tr" { // reorder todos
-		// TODO: implement this; think through how it should work
+		letterOne := flag.Arg(1)
+		letterTwo := flag.Arg(2)
+		swapTodos(&trackerData, letterOne, letterTwo)
 	} else if action == "c" { // check off a todo
-		// TODO: implement this
+		letter := flag.Arg(1)
+		deleteTodo(&trackerData, letter)
+	}
+	if action != "h" {
+		printState(trackerData)
 	}
 
-	if action != "h" {
-		printState(data)
+	output, err := yaml.Marshal(trackerData)
+	err = ioutil.WriteFile(fullpath, output, 0666)
+	if err != nil {
+		fmt.Printf("There was an error saving changes to file\n")
 	}
-	data.SaveTo(fullpath)
 }
