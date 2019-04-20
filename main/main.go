@@ -15,13 +15,13 @@ import (
 const timeFormat = "3:04pm"
 
 type TrackerData struct {
-	Time string `yaml:"time"`
+	Time    string         `yaml:"time"`
 	Entries []TrackerEntry `yaml:"entries"`
-	Todos []TrackerTodo `yaml:"todos"`
+	Todos   []TrackerTodo  `yaml:"todos"`
 }
 
 type TrackerEntry struct {
-	Name string `yaml:"name"`
+	Name  string  `yaml:"name"`
 	Total float64 `yaml:"total"`
 }
 
@@ -100,7 +100,7 @@ func smartUpdateValue(data *TrackerData, letter string) {
 
 func updateTime(data *TrackerData, delta float64) {
 	logTime := getLogTime(data)
-	logTime = logTime.Add(time.Minute * time.Duration(int(60 * delta)))
+	logTime = logTime.Add(time.Minute * time.Duration(int(60*delta)))
 	newTime := logTime.Format(timeFormat)
 	data.Time = newTime
 }
@@ -154,7 +154,7 @@ func renameEntry(data *TrackerData, letter string, newName string) {
 
 func deleteEntry(data *TrackerData, letter string) {
 	idx := letterToIdx(letter)
-	data.Entries = append(data.Entries[:idx], data.Entries[idx + 1:]...)
+	data.Entries = append(data.Entries[:idx], data.Entries[idx+1:]...)
 }
 
 func createTodo(data *TrackerData, todo string) {
@@ -164,7 +164,7 @@ func createTodo(data *TrackerData, todo string) {
 
 func deleteTodo(data *TrackerData, letter string) {
 	idx := letterToIdx(letter)
-	data.Todos = append(data.Todos[:idx], data.Todos[idx + 1:]...)
+	data.Todos = append(data.Todos[:idx], data.Todos[idx+1:]...)
 }
 
 func renameTodo(data *TrackerData, letter string, newName string) {
