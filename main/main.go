@@ -105,7 +105,7 @@ func printState(data TrackerData) {
 	}
 	logTime := data.Time
 	fmt.Printf(logTime)
-	fmt.Println("\n")
+	fmt.Printf("\n\n")
 
 	fmt.Printf("TODO:\n")
 	for idx := 0; idx < len(data.Todos); idx++ {
@@ -140,6 +140,11 @@ func deleteTodo(data *TrackerData, letter string) {
 	data.Todos = append(data.Todos[:idx], data.Todos[idx + 1:]...)
 }
 
+func renameTodo(data *TrackerData, letter string, newName string) {
+	idx := letterToIdx(letter)
+	data.Todos[idx].Content = newName
+}
+
 func swapTodos(data *TrackerData, letterOne string, letterTwo string) {
 	idxOne := letterToIdx(letterOne)
 	idxTwo := letterToIdx(letterTwo)
@@ -162,21 +167,22 @@ func main() {
 	flag.Parse()
 	action := flag.Arg(0)
 	if action == "h" {
-		fmt.Println("daily-tracker by Matt Steen")
+		fmt.Println("dt by Matt Steen")
 		fmt.Println("v1.0.0")
 		fmt.Println("Usage: ")
-		fmt.Println("'daily-tracker' to get current status")
-		fmt.Println("'daily-tracker a a' to add 15 minutes to entry a")
-		fmt.Println("'daily-tracker a 3b' to add 45 minutes to entry b")
-		fmt.Println("'daily-tracker s 2b' to subtract 30 minutes from entry b")
-		fmt.Println("'daily-tracker t 8:00am' to set today's start time to 8am")
-		fmt.Println("'daily-tracker n bounce_backs' to add a new entry called bounce_backs")
-		fmt.Println("'daily-tracker m d loyalty' to rename entry d to loyalty")
-		fmt.Println("'daily-tracker d e' to delete entry e")
-		fmt.Println("'daily-tracker r' to reset all entries to 0 and the start time to the previous day")
-		fmt.Println("'daily-tracker todo \"review Corey's PR\"' to add a new todo")
-		fmt.Println("'daily-tracker tr a b' to swap todos a and b")
-		fmt.Println("'daily-tracker c a' to checkoff todo a")
+		fmt.Println("'dt' to get current status")
+		fmt.Println("'dt a a' to add 15 minutes to entry a")
+		fmt.Println("'dt a 3b' to add 45 minutes to entry b")
+		fmt.Println("'dt s 2b' to subtract 30 minutes from entry b")
+		fmt.Println("'dt t 8:00am' to set today's start time to 8am")
+		fmt.Println("'dt n bounce_backs' to add a new entry called bounce_backs")
+		fmt.Println("'dt m d loyalty' to rename entry d to loyalty")
+		fmt.Println("'dt d e' to delete entry e")
+		fmt.Println("'dt r' to reset all entries to 0 and the start time to the previous day")
+		fmt.Println("'dt todo \"review Corey's PR\"' to add a new todo")
+		fmt.Println("'dt tm d loyalty' to rename todo d to loyalty")
+		fmt.Println("'dt tr a b' to swap todos a and b")
+		fmt.Println("'dt c a' to checkoff todo a")
 	} else if action == "a" || action == "s" { // add or subtract
 		input := flag.Arg(1)
 		updateValue(&trackerData, action, input)
@@ -198,6 +204,10 @@ func main() {
 	} else if action == "todo" { // add a todo
 		todo := flag.Arg(1)
 		createTodo(&trackerData, todo)
+	} else if action == "tm" { // reword a todo
+		letter := flag.Arg(1)
+		newName := flag.Arg(2)
+		renameTodo(&trackerData, letter, newName)
 	} else if action == "tr" { // reorder todos
 		letterOne := flag.Arg(1)
 		letterTwo := flag.Arg(2)
@@ -216,3 +226,10 @@ func main() {
 		fmt.Printf("There was an error saving changes to file\n")
 	}
 }
+
+/*
+time tracker
+    add smart update (figure out number of blocks based on current time)
+    update todo text
+    change todo reordering?
+*/
