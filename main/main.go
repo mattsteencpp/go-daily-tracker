@@ -2,8 +2,8 @@ package main
 
 import (
 	"flag"
-    "fmt"
-    // "github.com/mattsteencpp/go-daily-tracker/tracker"
+	"fmt"
+	// "github.com/mattsteencpp/go-daily-tracker/tracker"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"os"
@@ -51,10 +51,10 @@ func updateValue(data *TrackerData, action, input string) {
 	}
 	letter := result[0][2]
 	delta, err := strconv.ParseFloat(rawQuantity, 64)
-    if err != nil {
+	if err != nil {
 		fmt.Printf("Failed to parse multiplier: %v\n", err)
-        os.Exit(1)
-    }
+		os.Exit(1)
+	}
 	delta *= 0.25
 	if action == "s" {
 		delta *= -1
@@ -66,13 +66,40 @@ func updateValue(data *TrackerData, action, input string) {
 	updateTime(data, delta)
 }
 
-func updateTime(data *TrackerData, delta float64) {
+func getLogTime(data *TrackerData) time.Time {
 	timeKey := data.Time
 	logTime, err := time.Parse(timeFormat, timeKey)
-    if err != nil {
-        fmt.Printf("Failed to parse time: %v\n", err)
-        os.Exit(1)
-    }
+	if err != nil {
+		fmt.Printf("Failed to parse time: %v\n", err)
+		os.Exit(1)
+	}
+	return logTime
+}
+
+func smartUpdateValue(data *TrackerData, letter string) {
+	// add time to the selected entry until caught up to current time
+	logTime := getLogTime(data)
+
+	// get the current datetime and convert to time; if we try to subtract
+	// directly, it assumes that logTime is on day 1 of the epoch
+	currentDateTime := time.Now().Format(timeFormat)
+	currentTime, err := time.Parse(timeFormat, currentDateTime)
+	if err != nil {
+		fmt.Printf("Failed to parse time: %v\n", err)
+		os.Exit(1)
+	}
+
+	timeBlocks := currentTime.Sub(logTime).Round(15 * time.Minute)
+	delta := timeBlocks.Minutes() / 60.0
+
+	idx := letterToIdx(letter)
+	data.Entries[idx].Total += delta
+
+	updateTime(data, delta)
+}
+
+func updateTime(data *TrackerData, delta float64) {
+	logTime := getLogTime(data)
 	logTime = logTime.Add(time.Minute * time.Duration(int(60 * delta)))
 	newTime := logTime.Format(timeFormat)
 	data.Time = newTime
@@ -80,10 +107,10 @@ func updateTime(data *TrackerData, delta float64) {
 
 func setTime(data *TrackerData, newTime string) {
 	_, err := time.Parse(timeFormat, newTime)
-    if err != nil {
-        fmt.Printf("Failed to parse time: %v\n", err)
-        os.Exit(1)
-    }
+	if err != nil {
+		fmt.Printf("Failed to parse time: %v\n", err)
+		os.Exit(1)
+	}
 	data.Time = newTime
 }
 
@@ -158,7 +185,7 @@ func main() {
 	body, err := ioutil.ReadFile(fullpath)
 	if err != nil {
 		fmt.Printf("There was an error reading the yaml file\n")
-        os.Exit(1)
+		os.Exit(1)
 	}
 
 	var trackerData TrackerData
@@ -186,6 +213,9 @@ func main() {
 	} else if action == "a" || action == "s" { // add or subtract
 		input := flag.Arg(1)
 		updateValue(&trackerData, action, input)
+	} else if action == "u" { // smart update
+		letter := flag.Arg(1)
+		smartUpdateValue(&trackerData, letter)
 	} else if action == "t" { // set start time for the day
 		newTime := flag.Arg(1)
 		setTime(&trackerData, newTime)
@@ -226,10 +256,3 @@ func main() {
 		fmt.Printf("There was an error saving changes to file\n")
 	}
 }
-
-/*
-time tracker
-    add smart update (figure out number of blocks based on current time)
-    update todo text
-    change todo reordering?
-*/
