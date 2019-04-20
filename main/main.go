@@ -2,8 +2,8 @@ package main
 
 import (
 	"flag"
-    "fmt"
-    // "github.com/mattsteencpp/go-daily-tracker/tracker"
+	"fmt"
+	// "github.com/mattsteencpp/go-daily-tracker/tracker"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"os"
@@ -15,13 +15,13 @@ import (
 const timeFormat = "3:04pm"
 
 type TrackerData struct {
-	Time string `yaml:"time"`
+	Time    string         `yaml:"time"`
 	Entries []TrackerEntry `yaml:"entries"`
-	Todos []TrackerTodo `yaml:"todos"`
+	Todos   []TrackerTodo  `yaml:"todos"`
 }
 
 type TrackerEntry struct {
-	Name string `yaml:"name"`
+	Name  string  `yaml:"name"`
 	Total float64 `yaml:"total"`
 }
 
@@ -51,10 +51,10 @@ func updateValue(data *TrackerData, action, input string) {
 	}
 	letter := result[0][2]
 	delta, err := strconv.ParseFloat(rawQuantity, 64)
-    if err != nil {
+	if err != nil {
 		fmt.Printf("Failed to parse multiplier: %v\n", err)
-        os.Exit(1)
-    }
+		os.Exit(1)
+	}
 	delta *= 0.25
 	if action == "s" {
 		delta *= -1
@@ -66,24 +66,51 @@ func updateValue(data *TrackerData, action, input string) {
 	updateTime(data, delta)
 }
 
-func updateTime(data *TrackerData, delta float64) {
+func getLogTime(data *TrackerData) time.Time {
 	timeKey := data.Time
 	logTime, err := time.Parse(timeFormat, timeKey)
-    if err != nil {
-        fmt.Printf("Failed to parse time: %v\n", err)
-        os.Exit(1)
-    }
-	logTime = logTime.Add(time.Minute * time.Duration(int(60 * delta)))
+	if err != nil {
+		fmt.Printf("Failed to parse time: %v\n", err)
+		os.Exit(1)
+	}
+	return logTime
+}
+
+func smartUpdateValue(data *TrackerData, letter string) {
+	// add time to the selected entry until caught up to current time
+	logTime := getLogTime(data)
+
+	// get the current datetime and convert to time; if we try to subtract
+	// directly, it assumes that logTime is on day 1 of the epoch
+	currentDateTime := time.Now().Format(timeFormat)
+	currentTime, err := time.Parse(timeFormat, currentDateTime)
+	if err != nil {
+		fmt.Printf("Failed to parse time: %v\n", err)
+		os.Exit(1)
+	}
+
+	timeBlocks := currentTime.Sub(logTime).Round(15 * time.Minute)
+	delta := timeBlocks.Minutes() / 60.0
+
+	idx := letterToIdx(letter)
+	data.Entries[idx].Total += delta
+
+	updateTime(data, delta)
+}
+
+func updateTime(data *TrackerData, delta float64) {
+	logTime := getLogTime(data)
+	logTime = logTime.Add(time.Minute * time.Duration(int(60*delta)))
 	newTime := logTime.Format(timeFormat)
 	data.Time = newTime
 }
 
 func setTime(data *TrackerData, newTime string) {
 	_, err := time.Parse(timeFormat, newTime)
-    if err != nil {
-        fmt.Printf("Failed to parse time: %v\n", err)
-        os.Exit(1)
-    }
+	if err != nil {
+		fmt.Printf("Failed to parse time: %v\n", err)
+		os.Exit(1)
+	}
 	data.Time = newTime
 }
 
@@ -105,7 +132,7 @@ func printState(data TrackerData) {
 	}
 	logTime := data.Time
 	fmt.Printf(logTime)
-	fmt.Println("\n")
+	fmt.Printf("\n\n")
 
 	fmt.Printf("TODO:\n")
 	for idx := 0; idx < len(data.Todos); idx++ {
@@ -127,7 +154,7 @@ func renameEntry(data *TrackerData, letter string, newName string) {
 
 func deleteEntry(data *TrackerData, letter string) {
 	idx := letterToIdx(letter)
-	data.Entries = append(data.Entries[:idx], data.Entries[idx + 1:]...)
+	data.Entries = append(data.Entries[:idx], data.Entries[idx+1:]...)
 }
 
 func createTodo(data *TrackerData, todo string) {
@@ -137,7 +164,12 @@ func createTodo(data *TrackerData, todo string) {
 
 func deleteTodo(data *TrackerData, letter string) {
 	idx := letterToIdx(letter)
-	data.Todos = append(data.Todos[:idx], data.Todos[idx + 1:]...)
+	data.Todos = append(data.Todos[:idx], data.Todos[idx+1:]...)
+}
+
+func renameTodo(data *TrackerData, letter string, newName string) {
+	idx := letterToIdx(letter)
+	data.Todos[idx].Content = newName
 }
 
 func swapTodos(data *TrackerData, letterOne string, letterTwo string) {
@@ -153,7 +185,7 @@ func main() {
 	body, err := ioutil.ReadFile(fullpath)
 	if err != nil {
 		fmt.Printf("There was an error reading the yaml file\n")
-        os.Exit(1)
+		os.Exit(1)
 	}
 
 	var trackerData TrackerData
@@ -162,24 +194,28 @@ func main() {
 	flag.Parse()
 	action := flag.Arg(0)
 	if action == "h" {
-		fmt.Println("daily-tracker by Matt Steen")
+		fmt.Println("dt by Matt Steen")
 		fmt.Println("v1.0.0")
 		fmt.Println("Usage: ")
-		fmt.Println("'daily-tracker' to get current status")
-		fmt.Println("'daily-tracker a a' to add 15 minutes to entry a")
-		fmt.Println("'daily-tracker a 3b' to add 45 minutes to entry b")
-		fmt.Println("'daily-tracker s 2b' to subtract 30 minutes from entry b")
-		fmt.Println("'daily-tracker t 8:00am' to set today's start time to 8am")
-		fmt.Println("'daily-tracker n bounce_backs' to add a new entry called bounce_backs")
-		fmt.Println("'daily-tracker m d loyalty' to rename entry d to loyalty")
-		fmt.Println("'daily-tracker d e' to delete entry e")
-		fmt.Println("'daily-tracker r' to reset all entries to 0 and the start time to the previous day")
-		fmt.Println("'daily-tracker todo \"review Corey's PR\"' to add a new todo")
-		fmt.Println("'daily-tracker tr a b' to swap todos a and b")
-		fmt.Println("'daily-tracker c a' to checkoff todo a")
+		fmt.Println("'dt' to get current status")
+		fmt.Println("'dt a a' to add 15 minutes to entry a")
+		fmt.Println("'dt a 3b' to add 45 minutes to entry b")
+		fmt.Println("'dt s 2b' to subtract 30 minutes from entry b")
+		fmt.Println("'dt t 8:00am' to set today's start time to 8am")
+		fmt.Println("'dt n bounce_backs' to add a new entry called bounce_backs")
+		fmt.Println("'dt m d loyalty' to rename entry d to loyalty")
+		fmt.Println("'dt d e' to delete entry e")
+		fmt.Println("'dt r' to reset all entries to 0 and the start time to the previous day")
+		fmt.Println("'dt todo \"review Corey's PR\"' to add a new todo")
+		fmt.Println("'dt tm d loyalty' to rename todo d to loyalty")
+		fmt.Println("'dt tr a b' to swap todos a and b")
+		fmt.Println("'dt c a' to checkoff todo a")
 	} else if action == "a" || action == "s" { // add or subtract
 		input := flag.Arg(1)
 		updateValue(&trackerData, action, input)
+	} else if action == "u" { // smart update
+		letter := flag.Arg(1)
+		smartUpdateValue(&trackerData, letter)
 	} else if action == "t" { // set start time for the day
 		newTime := flag.Arg(1)
 		setTime(&trackerData, newTime)
@@ -198,6 +234,10 @@ func main() {
 	} else if action == "todo" { // add a todo
 		todo := flag.Arg(1)
 		createTodo(&trackerData, todo)
+	} else if action == "tm" { // reword a todo
+		letter := flag.Arg(1)
+		newName := flag.Arg(2)
+		renameTodo(&trackerData, letter, newName)
 	} else if action == "tr" { // reorder todos
 		letterOne := flag.Arg(1)
 		letterTwo := flag.Arg(2)
