@@ -125,11 +125,16 @@ func resetEntries(data *TrackerData) {
 
 func printState(data TrackerData) {
 	entries := data.Entries
+	totalTime := 0.0
 	for i := 0; i < len(entries); i++ {
 		entry := entries[i]
 		letter := idxToLetter(i)
+		if entry.Name != "lunch" && entry.Name != "me time" {
+			totalTime += entry.Total
+		}
 		fmt.Printf("%s) %s: %vh\n", letter, entry.Name, entry.Total)
 	}
+	fmt.Printf("Total: %vh\n", totalTime)
 	logTime := data.Time
 	fmt.Printf(logTime)
 	fmt.Printf("\n\n")
