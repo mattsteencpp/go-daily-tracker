@@ -56,7 +56,7 @@ func updateValue(data *TrackerData, action, input string) {
 		os.Exit(1)
 	}
 	delta *= 0.25
-	if action == "s" {
+	if action == "s" || action == "subtract" {
 		delta *= -1
 	}
 
@@ -185,6 +185,25 @@ func swapTodos(data *TrackerData, letterOne string, letterTwo string) {
 	data.Todos[idxOne].Content = tempContent
 }
 
+func printHelp() {
+	fmt.Println("dt by Matt Steen")
+	fmt.Println("v1.0.0")
+	fmt.Println("Usage: ")
+	fmt.Println("'dt' to get current status")
+	fmt.Println("'dt add a' to add 15 minutes to entry a")
+	fmt.Println("'dt add 3b' to add 45 minutes to entry b")
+	fmt.Println("'dt subtract 2b' to subtract 30 minutes from entry b")
+	fmt.Println("'dt time 8:00am' to set today's start time to 8am")
+	fmt.Println("'dt new \"project 1\" to add a new entry called 'project 1'")
+	fmt.Println("'dt mv d loyalty' to rename entry d to loyalty")
+	fmt.Println("'dt delete e' to delete entry e")
+	fmt.Println("'dt reset' to reset all entries to 0 and the start time to the previous day")
+	fmt.Println("'dt todo \"review Corey's PR\"' to add a new todo")
+	fmt.Println("'dt tm d loyalty' to rename todo d to loyalty")
+	fmt.Println("'dt tr a b' to swap todos a and b")
+	fmt.Println("'dt checkoff a' to check off todo a")
+}
+
 func main() {
 	fullpath := "/home/msteen/.daily-tracker.yaml"
 	body, err := ioutil.ReadFile(fullpath)
@@ -198,42 +217,27 @@ func main() {
 
 	flag.Parse()
 	action := flag.Arg(0)
-	if action == "h" {
-		fmt.Println("dt by Matt Steen")
-		fmt.Println("v1.0.0")
-		fmt.Println("Usage: ")
-		fmt.Println("'dt' to get current status")
-		fmt.Println("'dt a a' to add 15 minutes to entry a")
-		fmt.Println("'dt a 3b' to add 45 minutes to entry b")
-		fmt.Println("'dt s 2b' to subtract 30 minutes from entry b")
-		fmt.Println("'dt t 8:00am' to set today's start time to 8am")
-		fmt.Println("'dt n bounce_backs' to add a new entry called bounce_backs")
-		fmt.Println("'dt m d loyalty' to rename entry d to loyalty")
-		fmt.Println("'dt d e' to delete entry e")
-		fmt.Println("'dt r' to reset all entries to 0 and the start time to the previous day")
-		fmt.Println("'dt todo \"review Corey's PR\"' to add a new todo")
-		fmt.Println("'dt tm d loyalty' to rename todo d to loyalty")
-		fmt.Println("'dt tr a b' to swap todos a and b")
-		fmt.Println("'dt c a' to checkoff todo a")
-	} else if action == "a" || action == "s" { // add or subtract
+	if action == "h" || action == "help" {
+		printHelp()
+	} else if action == "a" || action == "s" || action == "add" || action == "subtract" { // add or subtract
 		input := flag.Arg(1)
 		updateValue(&trackerData, action, input)
-	} else if action == "u" { // smart update
+	} else if action == "u" || action == "update" { // smart update
 		letter := flag.Arg(1)
 		smartUpdateValue(&trackerData, letter)
-	} else if action == "t" { // set start time for the day
+	} else if action == "t" || action == "time" { // set start time for the day
 		newTime := flag.Arg(1)
 		setTime(&trackerData, newTime)
-	} else if action == "r" { // reset all entries
+	} else if action == "r" || action == "reset" { // reset all entries
 		resetEntries(&trackerData)
-	} else if action == "n" { // new entry
+	} else if action == "n" || action == "new" { // new entry
 		name := flag.Arg(1)
 		createEntry(&trackerData, name)
-	} else if action == "m" { // mv entry
+	} else if action == "m" || action == "mv" { // mv entry
 		letter := flag.Arg(1)
 		newName := flag.Arg(2)
 		renameEntry(&trackerData, letter, newName)
-	} else if action == "d" { // delete entry
+	} else if action == "d" || action == "delete" { // delete entry
 		letter := flag.Arg(1)
 		deleteEntry(&trackerData, letter)
 	} else if action == "todo" { // add a todo
@@ -247,11 +251,11 @@ func main() {
 		letterOne := flag.Arg(1)
 		letterTwo := flag.Arg(2)
 		swapTodos(&trackerData, letterOne, letterTwo)
-	} else if action == "c" { // check off a todo
+	} else if action == "c" || action == "checkoff" { // check off a todo
 		letter := flag.Arg(1)
 		deleteTodo(&trackerData, letter)
 	}
-	if action != "h" {
+	if action != "h" && action != "help" {
 		printState(trackerData)
 	}
 
