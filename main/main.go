@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	// "github.com/mattsteencpp/go-daily-tracker/tracker"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"os"
@@ -62,6 +61,13 @@ func updateValue(data *TrackerData, action, input string) {
 
 	idx := letterToIdx(letter)
 	data.Entries[idx].Total += delta
+
+	// don't allow negative totals
+	if data.Entries[idx].Total < 0 {
+		delta -= data.Entries[idx].Total
+		data.Entries[idx].Total = 0.0
+		fmt.Printf("Negative totals are not permitted. Setting to 0...\n\n")
+	}
 
 	updateTime(data, delta)
 }
