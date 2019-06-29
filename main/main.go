@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	// "github.com/mattsteencpp/go-daily-tracker/tracker"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"os"
@@ -15,9 +14,10 @@ import (
 const timeFormat = "3:04pm"
 
 type TrackerData struct {
-	Time    string         `yaml:"time"`
-	Entries []TrackerEntry `yaml:"entries"`
-	Todos   []TrackerTodo  `yaml:"todos"`
+	Time      string         `yaml:"time"`
+	BlockSize int64          `yaml:"block_size"`
+	Entries   []TrackerEntry `yaml:"entries"`
+	Todos     []TrackerTodo  `yaml:"todos"`
 }
 
 type TrackerEntry struct {
@@ -55,13 +55,21 @@ func updateValue(data *TrackerData, action, input string) {
 		fmt.Printf("Failed to parse multiplier: %v\n", err)
 		os.Exit(1)
 	}
-	delta *= 0.25
-	if action == "s" {
+	delta *= float64(data.BlockSize)
+	if action == "s" || action == "subtract" {
 		delta *= -1
 	}
 
 	idx := letterToIdx(letter)
 	data.Entries[idx].Total += delta
+
+	// don't allow negative totals
+	if data.Entries[idx].Total < 0 {
+		delta -= data.Entries[idx].Total
+		data.Entries[idx].Total = 0.0
+		fmt.Printf("Negative totals are not permitted\n\n")
+		os.Exit(1)
+	}
 
 	updateTime(data, delta)
 }
@@ -74,6 +82,30 @@ func getLogTime(data *TrackerData) time.Time {
 		os.Exit(1)
 	}
 	return logTime
+}
+
+func setBlockSize(data *TrackerData, size string) {
+	blockSize, err := strconv.ParseInt(size, 10, 64)
+	if err != nil {
+		fmt.Printf("Failed to parse block size (must be an integer): %v\n", err)
+		os.Exit(1)
+	}
+	if blockSize < 1 || blockSize > 60 {
+		fmt.Printf("Block size must be between 1 and 60 minutes: %v\n", err)
+		os.Exit(1)
+	}
+	for i := 0; i < len(data.Entries); i++ {
+		if data.Entries[i].Total > 0 {
+			fmt.Printf("Block size cannot be updated after logging time for the day (total must be 0)\n")
+			os.Exit(1)
+		}
+	}
+	data.BlockSize = blockSize
+}
+
+func smartUpdateTime(data *TrackerData) {
+	currentDateTime := time.Now().Round(time.Duration(data.BlockSize) * time.Minute)
+	data.Time = currentDateTime.Format(timeFormat)
 }
 
 func smartUpdateValue(data *TrackerData, letter string) {
@@ -89,8 +121,8 @@ func smartUpdateValue(data *TrackerData, letter string) {
 		os.Exit(1)
 	}
 
-	timeBlocks := currentTime.Sub(logTime).Round(15 * time.Minute)
-	delta := timeBlocks.Minutes() / 60.0
+	timeBlocks := currentTime.Sub(logTime).Round(time.Duration(data.BlockSize) * time.Minute)
+	delta := timeBlocks.Minutes()
 
 	idx := letterToIdx(letter)
 	data.Entries[idx].Total += delta
@@ -100,7 +132,7 @@ func smartUpdateValue(data *TrackerData, letter string) {
 
 func updateTime(data *TrackerData, delta float64) {
 	logTime := getLogTime(data)
-	logTime = logTime.Add(time.Minute * time.Duration(int(60*delta)))
+	logTime = logTime.Add(time.Minute * time.Duration(delta))
 	newTime := logTime.Format(timeFormat)
 	data.Time = newTime
 }
@@ -123,6 +155,17 @@ func resetEntries(data *TrackerData) {
 	updateTime(data, totalTime)
 }
 
+func formatDuration(totalMinutes float64) string {
+	if totalMinutes == 0.0 {
+		return "0"
+	}
+	duration := time.Duration(totalMinutes) * time.Minute
+	hours := duration / time.Hour
+	duration -= hours * time.Hour
+	minutes := duration / time.Minute
+	return fmt.Sprintf("%d:%02d", hours, minutes)
+}
+
 func printState(data TrackerData) {
 	entries := data.Entries
 	totalTime := 0.0
@@ -132,9 +175,11 @@ func printState(data TrackerData) {
 		if entry.Name != "lunch" && entry.Name != "me time" {
 			totalTime += entry.Total
 		}
-		fmt.Printf("%s) %s: %vh\n", letter, entry.Name, entry.Total)
+
+		formattedDuration := formatDuration(entry.Total)
+		fmt.Printf("%s) %s: %vh\n", letter, entry.Name, formattedDuration)
 	}
-	fmt.Printf("Total: %vh\n", totalTime)
+	fmt.Printf("Total: %vh\n", formatDuration(totalTime))
 	logTime := data.Time
 	fmt.Printf(logTime)
 	fmt.Printf("\n\n")
@@ -185,6 +230,27 @@ func swapTodos(data *TrackerData, letterOne string, letterTwo string) {
 	data.Todos[idxOne].Content = tempContent
 }
 
+func printHelp() {
+	fmt.Println("dt by Matt Steen")
+	fmt.Println("v1.0.0")
+	fmt.Println("Usage: ")
+	fmt.Println("'dt' to get current status")
+	fmt.Println("'dt add a' to add a block to entry a")
+	fmt.Println("'dt add 3b' to add 3 blocks to entry b")
+	fmt.Println("'dt subtract 2b' to subtract 2 blocks from entry b")
+	fmt.Println("'dt blocksize 10' to set the block size going forward to 10 minutes")
+	fmt.Println("'dt time 8:00am' to set today's start time to 8am")
+	fmt.Println("'dt start' to set today's start time to the current time")
+	fmt.Println("'dt new \"project 1\" to add a new entry called 'project 1'")
+	fmt.Println("'dt mv d loyalty' to rename entry d to loyalty")
+	fmt.Println("'dt delete e' to delete entry e")
+	fmt.Println("'dt reset' to reset all entries to 0 and the start time to the previous day")
+	fmt.Println("'dt todo \"review Corey's PR\"' to add a new todo")
+	fmt.Println("'dt tm d loyalty' to rename todo d to loyalty")
+	fmt.Println("'dt tr a b' to swap todos a and b")
+	fmt.Println("'dt checkoff a' to check off todo a")
+}
+
 func main() {
 	fullpath := "/home/msteen/.daily-tracker.yaml"
 	body, err := ioutil.ReadFile(fullpath)
@@ -198,42 +264,32 @@ func main() {
 
 	flag.Parse()
 	action := flag.Arg(0)
-	if action == "h" {
-		fmt.Println("dt by Matt Steen")
-		fmt.Println("v1.0.0")
-		fmt.Println("Usage: ")
-		fmt.Println("'dt' to get current status")
-		fmt.Println("'dt a a' to add 15 minutes to entry a")
-		fmt.Println("'dt a 3b' to add 45 minutes to entry b")
-		fmt.Println("'dt s 2b' to subtract 30 minutes from entry b")
-		fmt.Println("'dt t 8:00am' to set today's start time to 8am")
-		fmt.Println("'dt n bounce_backs' to add a new entry called bounce_backs")
-		fmt.Println("'dt m d loyalty' to rename entry d to loyalty")
-		fmt.Println("'dt d e' to delete entry e")
-		fmt.Println("'dt r' to reset all entries to 0 and the start time to the previous day")
-		fmt.Println("'dt todo \"review Corey's PR\"' to add a new todo")
-		fmt.Println("'dt tm d loyalty' to rename todo d to loyalty")
-		fmt.Println("'dt tr a b' to swap todos a and b")
-		fmt.Println("'dt c a' to checkoff todo a")
-	} else if action == "a" || action == "s" { // add or subtract
+	if action == "h" || action == "help" {
+		printHelp()
+	} else if action == "a" || action == "s" || action == "add" || action == "subtract" { // add or subtract
 		input := flag.Arg(1)
 		updateValue(&trackerData, action, input)
-	} else if action == "u" { // smart update
+	} else if action == "u" || action == "update" { // smart update
 		letter := flag.Arg(1)
 		smartUpdateValue(&trackerData, letter)
-	} else if action == "t" { // set start time for the day
+	} else if action == "t" || action == "time" { // set start time for the day
 		newTime := flag.Arg(1)
 		setTime(&trackerData, newTime)
-	} else if action == "r" { // reset all entries
+	} else if action == "b" || action == "blocksize" { // set block size for future updates
+		size := flag.Arg(1)
+		setBlockSize(&trackerData, size)
+	} else if action == "st" || action == "start" { // set start time to the current time
+		smartUpdateTime(&trackerData)
+	} else if action == "r" || action == "reset" { // reset all entries
 		resetEntries(&trackerData)
-	} else if action == "n" { // new entry
+	} else if action == "n" || action == "new" { // new entry
 		name := flag.Arg(1)
 		createEntry(&trackerData, name)
-	} else if action == "m" { // mv entry
+	} else if action == "m" || action == "mv" { // mv entry
 		letter := flag.Arg(1)
 		newName := flag.Arg(2)
 		renameEntry(&trackerData, letter, newName)
-	} else if action == "d" { // delete entry
+	} else if action == "d" || action == "delete" { // delete entry
 		letter := flag.Arg(1)
 		deleteEntry(&trackerData, letter)
 	} else if action == "todo" { // add a todo
@@ -247,11 +303,11 @@ func main() {
 		letterOne := flag.Arg(1)
 		letterTwo := flag.Arg(2)
 		swapTodos(&trackerData, letterOne, letterTwo)
-	} else if action == "c" { // check off a todo
+	} else if action == "c" || action == "checkoff" { // check off a todo
 		letter := flag.Arg(1)
 		deleteTodo(&trackerData, letter)
 	}
-	if action != "h" {
+	if action != "h" && action != "help" {
 		printState(trackerData)
 	}
 
