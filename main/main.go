@@ -82,6 +82,11 @@ func getLogTime(data *TrackerData) time.Time {
 	return logTime
 }
 
+func smartUpdateTime(data *TrackerData) {
+	currentDateTime := time.Now().Round(15 * time.Minute)
+	data.Time = currentDateTime.Format(timeFormat)
+}
+
 func smartUpdateValue(data *TrackerData, letter string) {
 	// add time to the selected entry until caught up to current time
 	logTime := getLogTime(data)
@@ -200,6 +205,7 @@ func printHelp() {
 	fmt.Println("'dt add 3b' to add 45 minutes to entry b")
 	fmt.Println("'dt subtract 2b' to subtract 30 minutes from entry b")
 	fmt.Println("'dt time 8:00am' to set today's start time to 8am")
+	fmt.Println("'dt start' to set today's start time to the current time")
 	fmt.Println("'dt new \"project 1\" to add a new entry called 'project 1'")
 	fmt.Println("'dt mv d loyalty' to rename entry d to loyalty")
 	fmt.Println("'dt delete e' to delete entry e")
@@ -234,6 +240,8 @@ func main() {
 	} else if action == "t" || action == "time" { // set start time for the day
 		newTime := flag.Arg(1)
 		setTime(&trackerData, newTime)
+	} else if action == "st" || action == "start" { // set start time to the current time
+		smartUpdateTime(&trackerData)
 	} else if action == "r" || action == "reset" { // reset all entries
 		resetEntries(&trackerData)
 	} else if action == "n" || action == "new" { // new entry
