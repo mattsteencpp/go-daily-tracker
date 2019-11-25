@@ -11,13 +11,12 @@ import (
 	"time"
 )
 
-const timeFormat = "3:04pm"
-
 type TrackerData struct {
-	Time      string         `yaml:"time"`
-	BlockSize int64          `yaml:"block_size"`
-	Entries   []TrackerEntry `yaml:"entries"`
-	Todos     []TrackerTodo  `yaml:"todos"`
+	Time       string         `yaml:"time"`
+	TimeFormat string         `yaml:"format"`
+	BlockSize  int64          `yaml:"block_size"`
+	Entries    []TrackerEntry `yaml:"entries"`
+	Todos      []TrackerTodo  `yaml:"todos"`
 }
 
 type TrackerEntry struct {
@@ -76,7 +75,7 @@ func updateValue(data *TrackerData, action, input string) {
 
 func getLogTime(data *TrackerData) time.Time {
 	timeKey := data.Time
-	logTime, err := time.Parse(timeFormat, timeKey)
+	logTime, err := time.Parse(data.TimeFormat, timeKey)
 	if err != nil {
 		fmt.Printf("Failed to parse time: %v\n", err)
 		os.Exit(1)
@@ -105,7 +104,7 @@ func setBlockSize(data *TrackerData, size string) {
 
 func smartUpdateTime(data *TrackerData) {
 	currentDateTime := time.Now().Round(time.Duration(data.BlockSize) * time.Minute)
-	data.Time = currentDateTime.Format(timeFormat)
+	data.Time = currentDateTime.Format(data.TimeFormat)
 }
 
 func smartUpdateValue(data *TrackerData, letter string) {
@@ -114,8 +113,8 @@ func smartUpdateValue(data *TrackerData, letter string) {
 
 	// get the current datetime and convert to time; if we try to subtract
 	// directly, it assumes that logTime is on day 1 of the epoch
-	currentDateTime := time.Now().Format(timeFormat)
-	currentTime, err := time.Parse(timeFormat, currentDateTime)
+	currentDateTime := time.Now().Format(data.TimeFormat)
+	currentTime, err := time.Parse(data.TimeFormat, currentDateTime)
 	if err != nil {
 		fmt.Printf("Failed to parse time: %v\n", err)
 		os.Exit(1)
@@ -133,12 +132,12 @@ func smartUpdateValue(data *TrackerData, letter string) {
 func updateTime(data *TrackerData, delta float64) {
 	logTime := getLogTime(data)
 	logTime = logTime.Add(time.Minute * time.Duration(delta))
-	newTime := logTime.Format(timeFormat)
+	newTime := logTime.Format(data.TimeFormat)
 	data.Time = newTime
 }
 
 func setTime(data *TrackerData, newTime string) {
-	_, err := time.Parse(timeFormat, newTime)
+	_, err := time.Parse(data.TimeFormat, newTime)
 	if err != nil {
 		fmt.Printf("Failed to parse time: %v\n", err)
 		os.Exit(1)
@@ -182,7 +181,7 @@ func printState(data TrackerData) {
 	fmt.Printf("Total: %vh\n", formatDuration(totalTime))
 	fmt.Printf("Logged Time: %v\n", data.Time)
 	currentDateTime := time.Now()
-	fmt.Printf("Current Time: %v\n\n", currentDateTime.Format(timeFormat))
+	fmt.Printf("Current Time: %v\n\n", currentDateTime.Format(data.TimeFormat))
 
 	fmt.Printf("TODO:\n")
 	for idx := 0; idx < len(data.Todos); idx++ {
