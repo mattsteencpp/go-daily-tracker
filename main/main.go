@@ -180,9 +180,9 @@ func printState(data TrackerData) {
 		fmt.Printf("%s) %s: %vh\n", letter, entry.Name, formattedDuration)
 	}
 	fmt.Printf("Total: %vh\n", formatDuration(totalTime))
-	logTime := data.Time
-	fmt.Printf(logTime)
-	fmt.Printf("\n\n")
+	fmt.Printf("Logged Time: %v\n", data.Time)
+	currentDateTime := time.Now()
+	fmt.Printf("Current Time: %v\n\n", currentDateTime.Format(timeFormat))
 
 	fmt.Printf("TODO:\n")
 	for idx := 0; idx < len(data.Todos); idx++ {
