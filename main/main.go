@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/gookit/color"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"os"
@@ -165,7 +166,7 @@ func formatDuration(totalMinutes float64) string {
 	return fmt.Sprintf("%d:%02d", hours, minutes)
 }
 
-func printState(data trackerData, summaryOnly bool) {
+func printState(data trackerData, summaryOnly, showTodos bool) {
 	entries := data.Entries
 	totalTime := 0.0
 	for i := 0; i < len(entries); i++ {
@@ -182,12 +183,12 @@ func printState(data trackerData, summaryOnly bool) {
 		formattedDuration := formatDuration(entry.Total)
 		fmt.Printf("%s) %s: %vh\n", letter, entry.Name, formattedDuration)
 	}
-	fmt.Printf("Total: %vh\n", formatDuration(totalTime))
-	fmt.Printf("Logged Time: %v\n", data.Time)
+	color.Style{color.FgCyan, color.OpBold}.Printf("Total: %vh\n", formatDuration(totalTime))
+	color.Style{color.FgCyan, color.OpBold}.Printf("Logged Time: %v\n", data.Time)
 	currentDateTime := time.Now()
-	fmt.Printf("Current Time: %v\n\n", currentDateTime.Format(data.TimeFormat))
+	color.Style{color.FgCyan, color.OpBold}.Printf("Current Time: %v\n\n", currentDateTime.Format(data.TimeFormat))
 
-	if summaryOnly {
+	if !showTodos {
 		return
 	}
 
@@ -241,7 +242,7 @@ func printHelp() {
 	fmt.Println("dt by Matt Steen")
 	fmt.Println("v1.0.0")
 	fmt.Println("Usage: ")
-	fmt.Println("'dt' to get current status")
+	fmt.Println("'dt' to get a summary of current status")
 	fmt.Println("'dt add a' to add a block to entry a")
 	fmt.Println("'dt add 3b' to add 3 blocks to entry b")
 	fmt.Println("'dt subtract 2b' to subtract 2 blocks from entry b")
@@ -257,6 +258,7 @@ func printHelp() {
 	fmt.Println("'dt tr a b' to swap todos a and b")
 	fmt.Println("'dt checkoff a' to check off todo a")
 	fmt.Println("'dt summary' to show a summary for the day")
+	fmt.Println("'dt all' to show all entries for the day")
 }
 
 func main() {
@@ -270,7 +272,8 @@ func main() {
 	var data trackerData
 	yaml.Unmarshal(body, &data)
 
-	summaryOnly := false
+	summaryOnly := true
+	showTodos := false
 
 	flag.Parse()
 	action := flag.Arg(0)
@@ -303,25 +306,33 @@ func main() {
 		letter := flag.Arg(1)
 		deleteEntry(&data, letter)
 	} else if action == "todo" { // add a todo
+		showTodos = true
 		todo := flag.Arg(1)
 		createTodo(&data, todo)
 	} else if action == "tm" { // reword a todo
+		showTodos = true
 		letter := flag.Arg(1)
 		newName := flag.Arg(2)
 		renameTodo(&data, letter, newName)
 	} else if action == "tr" { // reorder todos
+		showTodos = true
 		letterOne := flag.Arg(1)
 		letterTwo := flag.Arg(2)
 		swapTodos(&data, letterOne, letterTwo)
 	} else if action == "c" || action == "checkoff" { // check off a todo
+		showTodos = true
 		letter := flag.Arg(1)
 		deleteTodo(&data, letter)
 	} else if action == "sum" || action == "summary" { // display a summary
 		summaryOnly = true
+		showTodos = false
+	} else if action == "all" || action == "" { // display all entries, not just those with data
+		summaryOnly = false
+		showTodos = true
 	}
 
 	if action != "h" && action != "help" {
-		printState(data, summaryOnly)
+		printState(data, summaryOnly, showTodos)
 	}
 
 	output, err := yaml.Marshal(data)
