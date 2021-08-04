@@ -262,10 +262,13 @@ func printHelp() {
 }
 
 func main() {
-	fullpath := "/home/msteen/.daily-tracker.yaml"
+	
+	home, _ := os.LookupEnv("HOME")
+	fullpath := fmt.Sprintf("%s/.daily-tracker.yaml", home)
+
 	body, err := ioutil.ReadFile(fullpath)
 	if err != nil {
-		fmt.Printf("There was an error reading the yaml file\n")
+		fmt.Printf("There was an error reading the yaml file: %s\n", err)
 		os.Exit(1)
 	}
 
